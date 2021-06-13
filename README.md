@@ -2,7 +2,8 @@
 A Golang SDK for Devpay Payment Gateway  Get your API Keys at https://devpay.io
 
 # Install
-```go mod download github.com/dev-pay/go-pay-sdk/payclient
+```go
+go mod download github.com/dev-pay/go-pay-sdk/payclient
 ```
 
 # Usage 
