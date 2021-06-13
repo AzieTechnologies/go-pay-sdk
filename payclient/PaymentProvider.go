@@ -6,11 +6,11 @@ import (
 )
 
 type PaymentProvider struct {
-	TillerRestClient *RestAPIClient
+	RestAPIClient *RestAPIClient
 }
 
 func (paymentProvider *PaymentProvider) PaysafeAPIKey() (string, error) {
-	response, err := paymentProvider.TillerRestClient.Get("/v1/payment-providers/paysafe/api-key")
+	response, err := paymentProvider.RestAPIClient.Get("/v1/payment-providers/paysafe/api-key")
 
 	if err != nil {
 		return "", err

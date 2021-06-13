@@ -6,6 +6,11 @@ import (
 	"log"
 )
 
+var (
+	PaysafeEndPoint       = "https://hosted.paysafe.com"
+	PaysafeSanboxEndPoint = "https://hosted.test.paysafe.com"
+)
+
 type Paysafe struct {
 	Sandbox    bool
 	APIKey     string
@@ -43,13 +48,13 @@ func (paysafe *Paysafe) Tokenize(paymntDetail PaymentDetail) (string, error) {
 }
 
 func (paysafe *Paysafe) createRestClient() *RestAPIClient {
-	var BaseUrl = "https://hosted.paysafe.com"
+	var baseUrl = PaysafeEndPoint
 	if paysafe.Sandbox {
-		BaseUrl = "https://hosted.test.paysafe.com"
+		baseUrl = PaysafeSanboxEndPoint
 	}
-	var header = make(map[string]string)
-	header["X-Paysafe-Credentials"] = "Basic " + paysafe.APIKey
-	header["Content-Type"] = "application/json"
-	restClient := &RestAPIClient{BaseUrl: BaseUrl, Headers: header}
+	var headers = make(map[string]string)
+	headers["X-Paysafe-Credentials"] = "Basic " + paysafe.APIKey
+	headers["Content-Type"] = "application/json"
+	restClient := &RestAPIClient{BaseUrl: baseUrl, Headers: headers}
 	return restClient
 }

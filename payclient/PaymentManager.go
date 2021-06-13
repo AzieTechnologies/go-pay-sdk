@@ -6,7 +6,7 @@ import (
 )
 
 type PaymentManager struct {
-	TillerRestClient    *RestAPIClient
+	RestAPIClient       *RestAPIClient
 	PaymentIntentSecret string
 }
 
@@ -35,7 +35,7 @@ func (paymentProvider *PaymentManager) CreatePaymentIntent(paymentMethod *Paymen
 	var header = make(map[string]string)
 	header["Authorization"] = "Bearer " + paymentProvider.PaymentIntentSecret
 
-	response, err := paymentProvider.TillerRestClient.Post("/v1/payment-intents", b, header)
+	response, err := paymentProvider.RestAPIClient.Post("/v1/payment-intents", b, header)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (paymentProvider *PaymentManager) CreatePaymentIntent(paymentMethod *Paymen
 func (paymentProvider *PaymentManager) CreatePaymentMethod(paymentMethodDetail PaymentMethodDetail) (*PaymentMethod, error) {
 
 	b, _ := json.Marshal(paymentMethodDetail)
-	response, err := paymentProvider.TillerRestClient.Post("/v1/payment-methods", b, make(map[string]string))
+	response, err := paymentProvider.RestAPIClient.Post("/v1/payment-methods", b, make(map[string]string))
 	if err != nil {
 		return nil, err
 	}

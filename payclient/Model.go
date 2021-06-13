@@ -44,8 +44,32 @@ type BillingDetail struct {
 }
 
 type PaymentMethod struct {
-	Type string `json:"type"`
-	Id   string `json:"id"`
+	Card struct {
+		Brand    string `json:"brand"`
+		Last4    string `json:"last4"`
+		ExpYear  int    `json:"exp_year"`
+		ExpMonth int    `json:"exp_month"`
+	} `json:"card"`
+	AchDebit       interface{} `json:"ach_debit"`
+	Chargeable     bool        `json:"chargeable"`
+	Id             string      `json:"id"`
+	Type           string      `json:"type"`
+	CustomerID     interface{} `json:"customer_id"`
+	NickName       interface{} `json:"nick_name"`
+	ExpiresAt      time.Time   `json:"expires_at"`
+	ApplePay       bool        `json:"apple_pay"`
+	BillingDetails struct {
+		Name    string `json:"name"`
+		Address struct {
+			Zip     string `json:"zip"`
+			City    string `json:"city"`
+			State   string `json:"state"`
+			Street  string `json:"street"`
+			Country string `json:"country"`
+		} `json:"address"`
+	} `json:"billing_details"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type PaymentIntent struct {

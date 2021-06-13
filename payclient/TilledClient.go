@@ -36,11 +36,12 @@ type Config struct {
 }
 
 var (
-	TillerEndPoint       = "https://api.tilled.com"
-	TillerSanboxEndPoint = "https://sandbox-api.tilled.com"
-)
 
-var (
+	// API end-points
+	TilledEndPoint       = "https://api.tilled.com"
+	TilledSanboxEndPoint = "https://sandbox-api.tilled.com"
+
+	// Info logger, used when EnableVerboseLogging set to true
 	InfoLogger *log.Logger
 )
 
@@ -69,7 +70,7 @@ func (tilledClient *TilledClient) ConfirmPayment(paymntDetail PaymentDetail) (pa
 	restClient.InfoLogger = InfoLogger
 
 	// Get Paysafe API key
-	provider := &PaymentProvider{TillerRestClient: restClient}
+	provider := &PaymentProvider{RestAPIClient: restClient}
 	paysafeAPIKey, err := provider.PaysafeAPIKey()
 
 	if err != nil {
@@ -87,7 +88,7 @@ func (tilledClient *TilledClient) ConfirmPayment(paymntDetail PaymentDetail) (pa
 	}
 
 	// Create payment manager
-	paymentManager := &PaymentManager{TillerRestClient: restClient,
+	paymentManager := &PaymentManager{RestAPIClient: restClient,
 		PaymentIntentSecret: tilledClient.Config.Secret}
 
 	bd := BillingDetail{BillingAddress: paymntDetail.BillingAddress,
@@ -95,7 +96,7 @@ func (tilledClient *TilledClient) ConfirmPayment(paymntDetail PaymentDetail) (pa
 		Email: paymntDetail.Email,
 		Phone: paymntDetail.Phone}
 
-	pmd := PaymentMethodDetail{Amount: paymntDetail.Amount,
+	payMethodDetail := PaymentMethodDetail{Amount: paymntDetail.Amount,
 		Currency:      paymntDetail.Currency,
 		Type:          "card",
 		PaymentToken:  paymentToken,
@@ -103,13 +104,7 @@ func (tilledClient *TilledClient) ConfirmPayment(paymntDetail PaymentDetail) (pa
 		MetaData:      paymntDetail.MetaData}
 
 	// Confirm payment
-	paymentIntent, err := paymentManager.ConfirmPayment(pmd)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return paymentIntent, nil
+	return paymentManager.ConfirmPayment(payMethodDetail)
 }
 
 func (tilledClient *TilledClient) createRestClient() *RestAPIClient {
@@ -119,9 +114,9 @@ func (tilledClient *TilledClient) createRestClient() *RestAPIClient {
 	header["Content-Type"] = "application/json"
 
 	// Select end point
-	var endPoint = TillerEndPoint
+	var endPoint = TilledEndPoint
 	if tilledClient.Config.Sandbox {
-		endPoint = TillerSanboxEndPoint
+		endPoint = TilledSanboxEndPoint
 	}
 
 	// Create Rest API
