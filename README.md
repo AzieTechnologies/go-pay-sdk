@@ -43,6 +43,7 @@ intent, err := client.ConfirmPayment(payclient.PaymentDetail{
 
 
 ```
+> For verbose logs, pass EnableVerboseLogging: true in payclient.Config
 
 # Demo
 Please refer example code [here](https://github.com/dev-pay/go-pay-sdk/tree/main/example), follow below steps to run the example code
