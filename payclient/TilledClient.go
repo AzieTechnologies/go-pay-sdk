@@ -89,6 +89,7 @@ func (tilledClient *TilledClient) ConfirmPayment(paymntDetail PaymentDetail) (pa
 
 	// Create payment manager
 	paymentManager := &PaymentManager{RestAPIClient: restClient,
+		Config:              tilledClient.Config,
 		PaymentIntentSecret: tilledClient.Config.Secret}
 
 	bd := BillingDetail{BillingAddress: paymntDetail.BillingAddress,
