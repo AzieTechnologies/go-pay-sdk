@@ -38,8 +38,7 @@ type Config struct {
 var (
 
 	// API end-points
-	TilledEndPoint       = "https://api.tilled.com"
-	TilledSanboxEndPoint = "https://sandbox-api.tilled.com"
+	DevpayAPI = "https://api.devpay.io"
 
 	// Info logger, used when EnableVerboseLogging set to true
 	InfoLogger *log.Logger
@@ -69,10 +68,11 @@ func (devpayClient *DevpayClient) ConfirmPayment(paymntDetail PaymentDetail) (pa
 	restClient := devpayClient.createRestClient()
 	restClient.InfoLogger = InfoLogger
 
-	// Get Paysafe API key
-	provider := &PaymentProvider{RestAPIClient: restClient}
-	paysafeAPIKey, err := provider.PaysafeAPIKey()
+	// Create payment manager
+	paymentManager := &PaymentManager{RestAPIClient: restClient,
+		Config: devpayClient.Config}
 
+	paysafeAPIKey, err := paymentManager.PaysafeAPIKey()
 	if err != nil {
 		return nil, err
 	}
@@ -86,11 +86,6 @@ func (devpayClient *DevpayClient) ConfirmPayment(paymntDetail PaymentDetail) (pa
 	if err != nil {
 		return nil, err
 	}
-
-	// Create payment manager
-	paymentManager := &PaymentManager{RestAPIClient: restClient,
-		Config:              devpayClient.Config,
-		PaymentIntentSecret: devpayClient.Config.Secret}
 
 	bd := BillingDetail{BillingAddress: paymntDetail.BillingAddress,
 		Name:  paymntDetail.Name,
@@ -110,17 +105,9 @@ func (devpayClient *DevpayClient) ConfirmPayment(paymntDetail PaymentDetail) (pa
 
 func (devpayClient *DevpayClient) createRestClient() *RestAPIClient {
 	var header = make(map[string]string)
-	header["Authorization"] = "Bearer " + devpayClient.Config.ShareableKey
-	header["Tilled-Account"] = devpayClient.Config.AccountId
 	header["Content-Type"] = "application/json"
 
-	// Select end point
-	var endPoint = TilledEndPoint
-	if devpayClient.Config.Sandbox {
-		endPoint = TilledSanboxEndPoint
-	}
-
 	// Create Rest API
-	restClient := &RestAPIClient{BaseUrl: endPoint, Headers: header}
+	restClient := &RestAPIClient{BaseUrl: DevpayAPI, Headers: header}
 	return restClient
 }

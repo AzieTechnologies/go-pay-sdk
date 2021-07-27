@@ -6,23 +6,52 @@ import (
 )
 
 type PaymentManager struct {
-	RestAPIClient       *RestAPIClient
-	Config              *Config
-	PaymentIntentSecret string
+	RestAPIClient *RestAPIClient
+	Config        *Config
 }
 
-func (paymentProvider *PaymentManager) ConfirmPayment(paymentMethodDetail PaymentMethodDetail) (*PaymentIntent, error) {
+func (paymentManager *PaymentManager) PaysafeAPIKey() (string, error) {
 
-	_, err := paymentProvider.CreateDevpayPaymentIntent(createDevpayRestClient(), paymentMethodDetail)
+	var data = make(map[string]interface{})
+
+	var requestPayload = make(map[string]interface{})
+	requestPayload["DevpayId"] = paymentManager.Config.AccountId
+	requestPayload["token"] = paymentManager.Config.ShareableKey
+
+	if paymentManager.Config.Sandbox {
+		requestPayload["env"] = "sandbox"
+	}
+
+	data["RequestDetails"] = requestPayload
+	var header = make(map[string]string)
+
+	b, _ := json.Marshal(data)
+
+	response, err := paymentManager.RestAPIClient.Post("/v1/general.svc/paysafe/api-key", b, header)
+
+	if err != nil {
+		return "", err
+	}
+
+	var objMap map[string]interface{}
+	err = json.Unmarshal([]byte(response), &objMap)
+	if err != nil {
+		return "", err
+	}
+	providerApiKey, ok := objMap["provider_api_key"]
+	if !ok {
+		return "", errors.New(string(response))
+	}
+	return providerApiKey.(string), nil
+}
+
+func (paymentManager *PaymentManager) ConfirmPayment(paymentMethodDetail PaymentMethodDetail) (*PaymentIntent, error) {
+
+	paymentMethod, err := paymentManager.CreatePaymentMethod(paymentMethodDetail)
 	if err != nil {
 		return nil, err
 	}
-
-	paymentMethod, err := paymentProvider.CreatePaymentMethod(paymentMethodDetail)
-	if err != nil {
-		return nil, err
-	}
-	paymentIntent, err := paymentProvider.CreatePaymentIntent(paymentMethod, paymentMethodDetail)
+	paymentIntent, err := paymentManager.CreatePaymentIntent(paymentMethod, paymentMethodDetail)
 	return paymentIntent, err
 }
 
@@ -38,14 +67,16 @@ func createDevpayRestClient() *RestAPIClient {
 	return restClient
 }
 
-func (manager *PaymentManager) CreateDevpayPaymentIntent(client *RestAPIClient, paymentMethodDetail PaymentMethodDetail) (bool, error) {
-	dataMap := make(map[string]interface{})
-	paymentIntentsInfo := make(map[string]interface{})
+func (manager *PaymentManager) CreatePaymentIntent(paymentMethod *PaymentMethod, paymentMethodDetail PaymentMethodDetail) (*PaymentIntent, error) {
 
+	paymentIntentsInfo := make(map[string]interface{})
 	paymentIntentsInfo["amount"] = paymentMethodDetail.Amount
 	paymentIntentsInfo["currency"] = paymentMethodDetail.Currency
 	paymentIntentsInfo["capture_method"] = "automatic"
 	paymentIntentsInfo["payment_method_types"] = []string{"card"}
+	paymentIntentsInfo["payment_method_id"] = paymentMethod.Id
+	paymentIntentsInfo["metadata"] = paymentMethodDetail.MetaData
+	paymentIntentsInfo["confirm"] = true
 
 	requestDetails := make(map[string]interface{})
 
@@ -55,63 +86,26 @@ func (manager *PaymentManager) CreateDevpayPaymentIntent(client *RestAPIClient, 
 	}
 	requestDetails["token"] = manager.Config.Secret
 
-	dataMap["PaymentIntentsInfo"] = paymentIntentsInfo
-	dataMap["RequestDetails"] = requestDetails
+	payload := map[string]interface{}{
+		"PaymentIntentsInfo": paymentIntentsInfo,
+		"RequestDetails":     requestDetails,
+	}
 
-	b, _ := json.Marshal(dataMap)
+	b, _ := json.Marshal(payload)
 
 	var header = make(map[string]string)
-
 	response, err := manager.RestAPIClient.Post("/v1/general/paymentintent", b, header)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	var intentData map[string]interface{}
-	err = json.Unmarshal([]byte(response), &intentData)
-	if err != nil {
-		return false, err
-	}
-
-	responseMap, ok := intentData["Response"].(map[string]interface{})
-	if !ok {
-		return false, errors.New("failed to process the reponse")
-	}
-
-	success, isOk := responseMap["status"].(bool)
-	if !isOk {
-		return false, errors.New("failed to process the reponse")
-	}
-
-	if success {
-		return success, nil
-	}
-	return false, errors.New("failed to create dev-pay payment intent")
-}
-
-func (paymentProvider *PaymentManager) CreatePaymentIntent(paymentMethod *PaymentMethod, paymentMethodDetail PaymentMethodDetail) (*PaymentIntent, error) {
-
-	dataMap := make(map[string]interface{})
-	dataMap["amount"] = paymentMethodDetail.Amount
-	dataMap["currency"] = paymentMethodDetail.Currency
-	dataMap["capture_method"] = "automatic"
-	dataMap["payment_method_types"] = []string{"card"}
-	dataMap["payment_method_id"] = paymentMethod.Id
-	dataMap["metadata"] = paymentMethodDetail.MetaData
-	dataMap["confirm"] = true
-
-	b, _ := json.Marshal(dataMap)
-
-	var header = make(map[string]string)
-	header["Authorization"] = "Bearer " + paymentProvider.PaymentIntentSecret
-
-	response, err := paymentProvider.RestAPIClient.Post("/v1/payment-intents", b, header)
+	paymentIntentData, err := extractData([]byte(response), "PaymentIntentsResponse")
 	if err != nil {
 		return nil, err
 	}
 
 	var intent PaymentIntent
-	err = json.Unmarshal([]byte(response), &intent)
+	err = json.Unmarshal(paymentIntentData, &intent)
 	if err != nil {
 		return nil, err
 	}
@@ -122,16 +116,53 @@ func (paymentProvider *PaymentManager) CreatePaymentIntent(paymentMethod *Paymen
 	return &intent, nil
 }
 
-func (paymentProvider *PaymentManager) CreatePaymentMethod(paymentMethodDetail PaymentMethodDetail) (*PaymentMethod, error) {
+func (manager *PaymentManager) CreatePaymentMethod(paymentMethodDetail PaymentMethodDetail) (*PaymentMethod, error) {
 
-	b, _ := json.Marshal(paymentMethodDetail)
-	response, err := paymentProvider.RestAPIClient.Post("/v1/payment-methods", b, make(map[string]string))
+	billingAddress := paymentMethodDetail.BillingDetail.BillingAddress
+
+	paymentMethodInfo := map[string]interface{}{
+		"payment_token": paymentMethodDetail.PaymentToken,
+		"type":          "card",
+		"billing_details": map[string]interface{}{
+			"amount":   paymentMethodDetail.Amount,
+			"currency": paymentMethodDetail.Currency,
+			"address": map[string]interface{}{
+				"country": billingAddress.Country,
+				"state":   billingAddress.State,
+				"zip":     billingAddress.Zip,
+				"city":    billingAddress.City,
+				"street":  billingAddress.Street,
+			},
+		},
+	}
+
+	requestDetails := make(map[string]interface{})
+
+	requestDetails["DevpayId"] = manager.Config.AccountId
+	if manager.Config.Sandbox {
+		requestDetails["env"] = "sandbox"
+	}
+	requestDetails["token"] = manager.Config.Secret
+
+	payload := map[string]interface{}{
+		"PaymentMethodInfo": paymentMethodInfo,
+		"RequestDetails":    requestDetails,
+	}
+
+	b, _ := json.Marshal(payload)
+
+	response, err := manager.RestAPIClient.Post("/v1/paymentmethods/create", b, make(map[string]string))
+	if err != nil {
+		return nil, err
+	}
+
+	paymentMethoData, err := extractData([]byte(response), "PaymentMethodResponse")
 	if err != nil {
 		return nil, err
 	}
 
 	var method PaymentMethod
-	err = json.Unmarshal([]byte(response), &method)
+	err = json.Unmarshal(paymentMethoData, &method)
 	if err != nil {
 		return nil, err
 	}
@@ -139,4 +170,20 @@ func (paymentProvider *PaymentManager) CreatePaymentMethod(paymentMethodDetail P
 		return nil, errors.New(string(response))
 	}
 	return &method, nil
+}
+
+func extractData(data []byte, key string) ([]byte, error) {
+
+	var mappedData map[string]interface{}
+	err := json.Unmarshal([]byte(data), &mappedData)
+	if err != nil {
+		return nil, err
+	}
+
+	extractedMap, ok := mappedData[key].(map[string]interface{})
+	if !ok {
+		return nil, errors.New("failed to process the data")
+	}
+
+	return json.Marshal(extractedMap)
 }
